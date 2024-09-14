@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
+	"strings"
 )
 
 type OfficerResponse struct {
@@ -62,18 +62,39 @@ const host = "https://api.company-information.service.gov.uk"
 var rest_api_key string
 
 func main() {
-
 	rest_api_key = os.Getenv("COMP_HOUSE_API_KEY")
 
 	company_number := "10833732"
 
-	getOfficersForCompany(company_number)
+	officers, err := getOfficersForCompany(company_number)
 
-	getAppointmentsForOfficer("KXhQ15Scka6lnwt7rRBxRcC_ueg")
+	if err != nil {
+		fmt.Print(err.Error())
+		os.Exit(1)
+	}
+
+	for i := 0; i < len(officers); i++ {
+
+		dumpOfficer(officers[i])
+
+		var officer_id = extractOfficerId(officers[i])
+		if officer_id == "" {
+			fmt.Println("No officer ID found")
+			continue
+		}
+
+		appointments, err := getAppointmentsForOfficer(officer_id)
+
+		if err != nil {
+			fmt.Print(err.Error())
+			continue
+		}
+
+		dumpAppointments(appointments)
+	}
 }
 
-func getOfficersForCompany(company_number string) {
-
+func getOfficersForCompany(company_number string) ([]OfficerSummary, error) {
 	var bearer = "Basic " + base64.StdEncoding.EncodeToString([]byte(rest_api_key))
 	url := host + "/company/" + company_number + "/officers"
 
@@ -84,36 +105,21 @@ func getOfficersForCompany(company_number string) {
 	response, err := client.Do(request)
 
 	if err != nil {
-		fmt.Print(err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	responseData, err := io.ReadAll(io.Reader(response.Body))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	var responseObject OfficerResponse
 	json.Unmarshal(responseData, &responseObject)
 
-	fmt.Println(responseObject.ActiveCount)
-	fmt.Println(responseObject.ETag)
-	fmt.Println(len(responseObject.Officers))
-
-	for i := 0; i < len(responseObject.Officers); i++ {
-		fmt.Println(responseObject.Officers[i].Name)
-		fmt.Println(responseObject.Officers[i].Links.Officer.Appointments)
-		// fmt.Println(responseObject.Officers[i].Nationality)
-		// fmt.Println(responseObject.Officers[i].OfficerRole)
-		// fmt.Println(
-		// 	strconv.Itoa(responseObject.Officers[i].DateOfBirth.Month) + "-" +
-		// 		strconv.Itoa(responseObject.Officers[i].DateOfBirth.Year))
-		// fmt.Println(responseObject.Officers[i].Links.Self)
-	}
+	return responseObject.Officers, nil
 }
 
-func getAppointmentsForOfficer(officer_id string) {
-
+func getAppointmentsForOfficer(officer_id string) ([]AppointmentSummary, error) {
 	var bearer = "Basic " + base64.StdEncoding.EncodeToString([]byte(rest_api_key))
 	url := host + "/officers/" + officer_id + "/appointments"
 
@@ -124,27 +130,58 @@ func getAppointmentsForOfficer(officer_id string) {
 	response, err := client.Do(request)
 
 	if err != nil {
-		fmt.Print(err.Error())
-		os.Exit(1)
+		return nil, err
 	}
 
 	responseData, err := io.ReadAll(io.Reader(response.Body))
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	var responseObject AppointmentResponse
 	json.Unmarshal(responseData, &responseObject)
 
-	fmt.Println(responseObject.ActiveCount)
-	fmt.Println(responseObject.ETag)
-	fmt.Println(len(responseObject.Appointments))
+	return responseObject.Appointments, nil
+}
 
-	for i := 0; i < len(responseObject.Appointments); i++ {
-		fmt.Println(responseObject.Appointments[i].AppointedOn)
-		fmt.Println(responseObject.Appointments[i].AppointedTo.Name)
-		fmt.Println(responseObject.Appointments[i].AppointedTo.Number)
-		fmt.Println(responseObject.Appointments[i].AppointedTo.Status)
-		fmt.Println()
+func extractOfficerId(officerSummary OfficerSummary) string {
+	parts := strings.Split(officerSummary.Links.Officer.Appointments, "/")
+	if len(parts) >= 3 {
+		return parts[2]
 	}
+	return ""
+}
+
+func dumpOfficers(officerSummaries []OfficerSummary) {
+	for i := 0; i < len(officerSummaries); i++ {
+		dumpOfficer(officerSummaries[i])
+	}
+}
+
+func dumpOfficer(officer OfficerSummary) {
+
+	fmt.Println()
+	fmt.Println(officer.Name)
+
+	// fmt.Println(responseObject.Officers[i].Nationality)
+	// fmt.Println(responseObject.Officers[i].OfficerRole)
+	// fmt.Println(
+	// 	strconv.Itoa(responseObject.Officers[i].DateOfBirth.Month) + "-" +
+	// 		strconv.Itoa(responseObject.Officers[i].DateOfBirth.Year))
+	// fmt.Println(responseObject.Officers[i].Links.Self)
+}
+
+func dumpAppointments(appointmentSummaries []AppointmentSummary) {
+	for i := 0; i < len(appointmentSummaries); i++ {
+		dumpAppointment(appointmentSummaries[i])
+	}
+}
+
+func dumpAppointment(appointment AppointmentSummary) {
+	fmt.Println(appointment.AppointedTo.Name)
+	/*
+		fmt.Println(appointment.AppointedOn)
+		fmt.Println(appointment.AppointedTo.Number)
+		fmt.Println(appointment.AppointedTo.Status)
+	*/
 }
