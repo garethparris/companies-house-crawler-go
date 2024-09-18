@@ -64,6 +64,11 @@ var rest_api_key string
 func main() {
 	rest_api_key = os.Getenv("COMP_HOUSE_API_KEY")
 
+	if rest_api_key == "" {
+		fmt.Print("No API key found")
+		os.Exit(1)
+	}
+
 	company_number := "10833732"
 
 	officers, err := getOfficersForCompany(company_number)
@@ -74,6 +79,8 @@ func main() {
 	}
 
 	for i := 0; i < len(officers); i++ {
+
+		fmt.Println()
 
 		dumpOfficer(officers[i])
 
@@ -90,7 +97,20 @@ func main() {
 			continue
 		}
 
-		dumpAppointments(appointments)
+		for j := 0; j < len(appointments); j++ {
+			dumpAppointment(appointments[j])
+
+			officers2, err := getOfficersForCompany(appointments[j].AppointedTo.Number)
+
+			if err != nil {
+				fmt.Print(err.Error())
+				continue
+			}
+
+			for k := 0; k < len(officers2); k++ {
+				dumpOfficer(officers[k])
+			}
+		}
 	}
 }
 
@@ -152,15 +172,8 @@ func extractOfficerId(officerSummary OfficerSummary) string {
 	return ""
 }
 
-func dumpOfficers(officerSummaries []OfficerSummary) {
-	for i := 0; i < len(officerSummaries); i++ {
-		dumpOfficer(officerSummaries[i])
-	}
-}
-
 func dumpOfficer(officer OfficerSummary) {
 
-	fmt.Println()
 	fmt.Println(officer.Name)
 
 	// fmt.Println(responseObject.Officers[i].Nationality)
@@ -169,12 +182,6 @@ func dumpOfficer(officer OfficerSummary) {
 	// 	strconv.Itoa(responseObject.Officers[i].DateOfBirth.Month) + "-" +
 	// 		strconv.Itoa(responseObject.Officers[i].DateOfBirth.Year))
 	// fmt.Println(responseObject.Officers[i].Links.Self)
-}
-
-func dumpAppointments(appointmentSummaries []AppointmentSummary) {
-	for i := 0; i < len(appointmentSummaries); i++ {
-		dumpAppointment(appointmentSummaries[i])
-	}
 }
 
 func dumpAppointment(appointment AppointmentSummary) {
